@@ -1,3 +1,5 @@
+import "./database.js"
+import Sesion from "./models/sesions.js";
 import express from 'express';
 import session from 'express-session';
 import bodyParser from 'body-parser';
@@ -73,47 +75,53 @@ const getServerNetworkInfo = () => {
 
 // Login endpoint
 
-app.post("/login", (req,res)=> {
-    
-    const {email, nickname , macAddress} = req.body;
-
-    if(!email || !nickname || !macAddress){
-        return res.status(400).json({ message: "Se esperan campos requeridos"});
+app.post("/login", async (req, res) => {
+    const { email, nickname, macAddress } = req.body;
+  
+    if (!email || !nickname || !macAddress) {
+      return res.status(400).json({ message: "Se esperan campos requeridos" });
     }
-
-
-    const sessionID= uuidv4();
-    const now = moment().tz('America/Mexico_City'); 
-
-
     
-    sessions[sessionID]={
-        sessionID,
-        email,
-        nickname,
-        macAddress,
-        ip:getServerNetworkInfo(),
-        ip_client: getClientIp(req),
-        createAt: now.format('YYYY-MM-DD HH:mm:ss'), 
-        lastAccessed: now.format('YYYY-MM-DD HH:mm:ss'), 
-        
-
+    const sessionID = uuidv4();
+    const now = moment().tz('America/Mexico_City'); 
+    const serverInfo = getServerNetworkInfo(); // Se asume que esta función devuelve un objeto con la información del servidor
+  
+    const sessionData = {
+      sessionID,
+      email,
+      nickname,
+      status: "Activa",
+      clienteData: {
+        ip: serverInfo.serverIP, // Asegúrate de que esta propiedad tenga la IP correcta
+        macAddress
+      },
+      serveData: {
+        ip: getClientIp(req), // Se asume que esta función obtiene la IP del cliente
+        macAddress
+      },
+      inactivirtTime: {
+        hours: 0, 
+        minutes: 0, 
+        seconds: 0
+      }
     };
-
-    // req.session[sessionID] = sessionData;
-    // activeSessions[sessionID] = sessionData; //Guardar sesion en el almacenamiento de sesiones
-
-    res.status(200).json({
-    message:"Se ha logeado de manera exitosa",
-    sessionID,
-
-});
-
-});
+  
+    try {
+      // Se guarda la sesión en la base de datos
+      await Sesion.create(sessionData);
+      res.status(200).json({
+        message: "Se ha logeado de manera exitosa",
+        sessionID,
+      });
+    } catch (error) {
+      console.error('Error al guardar la sesión:', error);
+      res.status(500).json({ message: "Error al registrar la sesión" });
+    }
+  });
 
 
 // Logout endpoint
-app.post("/logout", (req, res) => {
+app.post("/logout", async(req, res) => {
     const { sessionID } = req.body;
 
     // Verificar que se proporcione un sessionID válido
@@ -123,9 +131,12 @@ app.post("/logout", (req, res) => {
         });
     }
 
+    const sesion = await Sesion.findOne({ sessionID });
+
     // Eliminar la sesión del almacenamiento en memoria
     delete sessions[sessionID];
-
+    sesion.status = "Finalizada por el usuario";
+    await sesion.save();
     // Intentar destruir la sesión activa
     req.session.destroy((err) => {
         if (err) {
@@ -201,13 +212,25 @@ const formatTime = (totalSeconds) => {
 };
 
 // Endpoint /status para verificar el estado de la sesión
-app.get("/status", (req, res) => {
+app.get("/status", async (req, res) => {
     const sessionID = req.query.sessionID;
     if (!sessionID || !sessions[sessionID]) {
         return res.status(404).json({ message: "No hay sesión activa." });
     }
-
+    const sesion = await Sesion.findOne({ sessionID });
     const resultado = calcularTiempoSesion(sessionID);
+
+    const now = moment();
+    const lastAccess = moment(sesion.lastAccess);
+    const tiempoInactividad = now.diff(lastAccess, "seconds");
+
+    // Si supera 2 minutos, marcamos como "Inactiva"
+    if (tiempoInactividad > 120) {
+        sesion.status = "Inactiva";
+        await sesion.save();
+    }
+  
+
 
     // Si la sesión expiró, devolver error y eliminarla
     if (resultado.error) {
@@ -215,8 +238,9 @@ app.get("/status", (req, res) => {
     }
 
     res.status(200).json({
-        message: "Sesión activa",
+        message: "Estado de Sesion",
         session: sessions[sessionID],
+        estado:sesion,
         horaActualCDMX: moment().tz("America/Mexico_City").format("YYYY-MM-DD HH:mm:ss"),
         ...resultado
     });
@@ -265,6 +289,27 @@ app.get('/sessions', (req, res) => {
 
 
 
+
+
+
+const verificarSesiones = async () => {
+    const sesiones = await Sesion.find({ status: "Activa" });
+
+    const now = moment();
+
+    for (let sesion of sesiones) {
+        const lastAccess = moment(sesion.lastAccess);
+        const tiempoInactividad = now.diff(lastAccess, "seconds");
+
+        if (tiempoInactividad > 300) { // Expira después de 5 minutos
+            sesion.status = "Finalizada por error";
+            await sesion.save();
+        }
+    }
+};
+
+// Ejecutamos la verificación cada 1 minuto
+setInterval(verificarSesiones, 60 * 1000);
 
 
 

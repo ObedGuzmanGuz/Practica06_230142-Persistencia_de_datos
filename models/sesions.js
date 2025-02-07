@@ -1,5 +1,6 @@
 import moment from "moment-timezone";
-import {model, Schema} from "mongoose";
+import mongoose, {model, Schema} from "mongoose";
+import { type } from "os";
 import { v4 as uuidv4 } from 'uuid';
 const SesionSchema = new Schema({
 
@@ -16,15 +17,15 @@ const SesionSchema = new Schema({
         type: String,
         required:true
     },
-    createdAt:{
+    createdAt: {
         type: Date,
-        default: () => moment().tz('America/Mexico_cITY').toDate(),
+        default: () => moment().tz('America/Mexico_City').toDate(),
         required: true
-    },
-    lastAccess:{
+      },
+      lastAccess: {
         type: Date,
-        default: () => moment().tz('America/Mexico_cITY').toDate()
-    },
+        default: () => moment().tz('America/Mexico_City').toDate()
+      },
     status: {
         type: String,
         enum: ["Activa", "Inactiva", "Finalizada por el usuario", "Finalizada por error"],
@@ -33,11 +34,21 @@ const SesionSchema = new Schema({
     clienteData: {
         ip: {type: String, required: true},
         macAddress: {type: String, required: true}
+    },
+    serveData:{
+        ip: {type:String, required:true},
+        macAddress:{type:String, required: true}
+    },
+    inactivirtTime:{
+        hours: { type: Number, required: true, min:0},
+        minutes: {type: Number, required:true, min: 0, max:59},
+        seconds:{type:Number, required: true, min:0, max:59}
     }
     //////////////////////
 
-},{
-    versionKey:false,
-    timestamps:true,
-});
+}
+);
+
+const Sesion = mongoose.model('Sesion',SesionSchema);
+export default Sesion;
 
