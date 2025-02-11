@@ -421,6 +421,31 @@ app.delete('/deleteAllSessions', async (req, res) => {
 });
 
 
+const finalizarSesionesPorError = async () => {
+    try {
+        await Sesion.updateMany(
+            { status: "Activa" },
+            { $set: { status: "Finalizada por error", lastAccess: moment().tz("America/Mexico_City").toDate() } }
+        );
+        console.log("⚠️ Todas las sesiones activas fueron finalizadas debido a un cierre inesperado del servidor.");
+    } catch (error) {
+        console.error("❌ Error al actualizar sesiones al apagar el servidor:", error);
+    }
+};
+
+// Manejo de eventos cuando el servidor se cierra
+process.on("exit", finalizarSesionesPorError);
+process.on("SIGINT", async () => {
+    await finalizarSesionesPorError();
+    process.exit(0);
+});
+process.on("SIGTERM", async () => {
+    await finalizarSesionesPorError();
+    process.exit(0);
+});
+
+
+
 app.get('/',(req,res)=>{
     return res.status(200).json({
         message:"Bienvenido a la API de Control de sesiones",
