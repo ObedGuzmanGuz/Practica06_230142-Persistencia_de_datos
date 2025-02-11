@@ -2,6 +2,7 @@ import moment from "moment-timezone";
 import mongoose, {model, Schema} from "mongoose";
 import { type } from "os";
 import { v4 as uuidv4 } from 'uuid';
+
 const SesionSchema = new Schema({
 
     sessionID:{
@@ -36,7 +37,7 @@ const SesionSchema = new Schema({
         macAddress: {type: String, required: true}
     },
     serveData:{
-        ip: {type:String, required:true},
+        Ip: {type:String, required:true},
         macAddress:{type:String, required: true}
     },
     inactivirtTime:{
