@@ -19,13 +19,13 @@ const SesionSchema = new Schema({
         required:true
     },
     createdAt: {
-        type: Date,
-        default: () => moment().tz('America/Mexico_City').toDate(),
+        type: String,
+        default: () => moment().tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss'),
         required: true
       },
       lastAccess: {
-        type: Date,
-        default: () => moment().tz('America/Mexico_City').toDate()
+        type: String,
+        default: () => moment().tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss'),
       },
     status: {
         type: String,
@@ -41,11 +41,11 @@ const SesionSchema = new Schema({
         macAddress:{type:String, required: true}
     },
     inactivirtTime:{
-        hours: { type: Number, required: true, min:0},
+        hours: { type: Number, required: true, min:0 },
         minutes: {type: Number, required:true, min: 0, max:59},
         seconds:{type:Number, required: true, min:0, max:59}
     }
-    //////////////////////
+
 
 }
 );

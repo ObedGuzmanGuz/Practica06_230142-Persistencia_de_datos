@@ -71,13 +71,12 @@ app.post("/login", async (req, res) => {
 
     console.log(ipclient);
 
-    // Crear los datos para la nueva sesión
     const newSessionData = {
         sessionID,
         email,
         nickname,
-        createdAt: now.toDate(),
-        lastAccess: now.toDate(),
+        createdAt: now.format('YYYY-MM-DD HH:mm:ss'),
+        lastAccess: now.format('YYYY-MM-DD HH:mm:ss'),
         status: "Activa", // Aquí puedes definir el estado inicial
         clienteData: {
             ip: ipclient,
@@ -91,7 +90,6 @@ app.post("/login", async (req, res) => {
         },
     };
 
-    // Guardar la nueva sesión en la base de datos utilizando insertOne
     try {
         const result = await mongoose.connection.db.collection('sesions').insertOne(newSessionData);
 
@@ -172,7 +170,8 @@ app.post("/update", async (req, res) => {
         }
 
         const now = moment().tz("America/Mexico_City");
-        const lastAccessedAt = moment(session.lastAccess);
+        const lastAccessedAt = moment(session.lastAccess, "YYYY-MM-DD HH:mm:ss", true);
+
         const tiempoInactividad = now.diff(lastAccessedAt, "seconds");
         const tiempoExpiracion = tiemposeson / 1000; // Tiempo en segundos
 
@@ -188,7 +187,7 @@ app.post("/update", async (req, res) => {
         const segundos = tiempoInactividad % 60;
 
         const updateData = {
-            lastAccess: now.toDate(),
+            lastAccess: now.format('YYYY-MM-DD HH:mm:ss'),
             inactivirtTime: { hours: horas, minutes: minutos, seconds: segundos }
         };
 
@@ -255,7 +254,8 @@ app.get("/status", async (req, res) => {
         }
 
         const now = moment();
-        const lastAccessedAt = moment(session.lastAccess);
+        const lastAccessedAt = moment(session.lastAccess, "YYYY-MM-DD HH:mm:ss", true);
+
         const sessionStartAt = moment(session.createdAt);
         const tiempoSesionActivo = now.diff(sessionStartAt, "seconds");
         const tiempoInactividad = now.diff(lastAccessedAt, "seconds");
@@ -287,54 +287,58 @@ app.get("/status", async (req, res) => {
 });
 
 
-app.get('/sessions', async (req, res) => {
+app.get('/allsessions', async (req, res) => {
     try {
-        // Recuperar todas las sesiones desde la base de datos
-        const sessions = await Sesion.find({});
-
-        if (sessions.length === 0) {
-            return res.status(404).json({
-                message: 'No hay sesiones registradas.',
-            });
-        }
-
-        const now = moment();
-
-        // Filtrar sesiones inactivas basadas en el tiempo de inactividad
-        const sessionsWithTimeData = sessions.map(session => {
-            const sessionStart = moment(session.createdAt);
-            const lastAccessed = moment(session.lastAccess);
-            
-            const tiempoSesionActivo = now.diff(sessionStart, 'seconds');
-            const tiempoInactividad = now.diff(lastAccessed, 'seconds');
-            const tiempoExpiracion = tiemposeson / 1000; 
-            const tiempoRestante = Math.max(0, tiempoExpiracion - tiempoInactividad);
-
-            // Si la sesión ha expirado, actualizar el estado y eliminarla si es necesario
-            if (tiempoInactividad >= tiempoExpiracion) {
-                session.status = "Inactiva"; // Cambiar estado a inactiva
-                session.lastAccess = now.toDate(); // Actualizar la hora de acceso
-                session.save(); // Guardar los cambios en la base de datos
-            }
-
-            return {
-                ...session.toObject(),
-                Duracion_sesion: `${tiempoSesionActivo} segundos`,
-                tiempoInactividad: `${formatTime(tiempoInactividad)} `,
-                tiempoRestante: `${formatTime(tiempoRestante)} `,
-            };
-        });
-
-        res.status(200).json({
-            message: 'Sesiones recuperadas',
-            sessions: sessionsWithTimeData,
-        });
+      // Recuperar todas las sesiones desde la base de datos
+      const sessions = await Sesion.find({});
+      if (sessions.length === 0) {
+        return res.status(404).json({ message: 'No hay sesiones registradas.' });
+      }
+  
+      // Usar la zona horaria de México para los cálculos
+      const now = moment().tz("America/Mexico_City");
+  
+      const sessionsWithTimeData = sessions.map(session => {
+        // Calcular el periodo de inactividad transcurrido desde el último acceso
+        const lastAccessed = moment(session.lastAccess, "YYYY-MM-DD HH:mm:ss");
+        const newInactivePeriod = now.diff(lastAccessed, "seconds");
+  
+        // Convertir el inactivirtTime acumulado anterior a segundos
+        const previousInactivitySeconds =
+          (session.inactivirtTime.hours * 3600) +
+          (session.inactivirtTime.minutes * 60) +
+          session.inactivirtTime.seconds;
+  
+        // Calcular el total acumulado (almacenado + lo que ha pasado desde el último acceso)
+        const totalInactivitySeconds = previousInactivitySeconds + newInactivePeriod;
+  
+        // Convertir total de segundos a formato horas, minutos y segundos
+        const updatedHours = Math.floor(totalInactivitySeconds / 3600);
+        const updatedMinutes = Math.floor((totalInactivitySeconds % 3600) / 60);
+        const updatedSeconds = totalInactivitySeconds % 60;
+  
+        // Además, calcular la duración total de la sesión (desde createdAt)
+        const sessionStart = moment(session.createdAt, "YYYY-MM-DD HH:mm:ss");
+        const tiempoSesionActivo = now.diff(sessionStart, "seconds");
+  
+        return {
+          ...session.toObject(),
+          Duracion_sesion: `${tiempoSesionActivo} segundos`,
+          // Se muestra el tiempo de inactividad acumulado actual
+          tiempoInactividadAcumulado: `${updatedHours} horas ${updatedMinutes} minutos ${updatedSeconds} segundos`,
+        };
+      });
+  
+      res.status(200).json({
+        message: 'Sesiones recuperadas',
+        sessions: sessionsWithTimeData,
+      });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Error al recuperar las sesiones.' });
+      console.error(error);
+      res.status(500).json({ message: 'Error al recuperar las sesiones.' });
     }
-});
-
+  });
+  
 // Endpoint /allCurrentSessions para recuperar todas las sesiones activas
 app.get('/allCurrentSessions', async (req, res) => {
     try {
@@ -345,7 +349,8 @@ app.get('/allCurrentSessions', async (req, res) => {
         const activeSessions = [];
 
         for (const session of sessions) {
-            const lastAccessed = moment(session.lastAccess);
+            const lastAccessed = moment(session.lastAccess, "YYYY-MM-DD HH:mm:ss", true);
+
             const tiempoInactividad = now.diff(lastAccessed, 'seconds');
             const tiempoExpiracion = tiemposeson / 1000;
 
@@ -354,7 +359,7 @@ app.get('/allCurrentSessions', async (req, res) => {
                 
                 await Sesion.updateOne(
                     { _id: session._id },
-                    { $set: { status: "Inactiva", lastAccess: now.toDate() } }
+                    { $set: { status: "Inactiva", lastAccess: now.format('YYYY-MM-DD HH:mm:ss')} }
                 );
             } else {
                 // Agregar sesiones no expiradas al array de sesiones activas
@@ -370,7 +375,8 @@ app.get('/allCurrentSessions', async (req, res) => {
 
         const sessionsWithTimeData = activeSessions.map(session => {
             const sessionStart = moment(session.createdAt);
-            const lastAccessed = moment(session.lastAccess);
+            const lastAccessed = moment(session.lastAccess, "YYYY-MM-DD HH:mm:ss", true);
+
 
             const tiempoSesionActivo = now.diff(sessionStart, 'seconds');
             const tiempoInactividad = now.diff(lastAccessed, 'seconds');
