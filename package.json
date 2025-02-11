@@ -1,0 +1,24 @@
+{
+  "name": "practica06_230142-persistencia_de_datos",
+  "version": "1.0.0",
+  "description": "Implementación de la persistencia de los datos de sesión en una base de datos No relacional",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon app.js"
+  },
+  "author": "Obed Guzman Flores",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "moment-timezone": "^0.5.47",
+    "mongoose": "^8.9.6",
+    "uuid": "^11.0.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}
